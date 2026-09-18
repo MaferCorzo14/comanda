@@ -1,0 +1,86 @@
+# AGENTS.md
+
+Contexto e instrucciones para agentes de IA que trabajen en este repositorio.
+Los ADR mandan sobre este archivo; este archivo manda sobre cualquier costumbre general.
+
+## Regla de oro
+
+**Toda regla de negocio se valida en el servidor, dentro de una transacción de base de datos. La interfaz nunca decide.**
+
+Comprobable así: cualquier operación prohibida por las reglas debe ser rechazada aunque se envíe directamente por HTTP, sin pasar por la interfaz. Si ocultar un botón es lo único que impide una operación inválida, la regla no está implementada.
+
+## Qué es este sistema
+
+Gestión de pedidos y cola de cocina para un restaurante con una sola cocina central.
+Sustituye la comanda en papel: la cocina sabe qué preparar primero y el mesero sabe qué está listo.
+
+Alcance: persistencia, interfaz web para operar, reglas del negocio predominante y la consulta de la cola.
+Fuera de alcance: autenticación avanzada, pagos reales, despliegue en producción, integraciones externas, impuestos y descuentos.
+
+## Roles
+
+| Rol | Qué hace |
+|---|---|
+| Administrador | Gestiona platos (nombre, precio) y la disponibilidad de ingredientes (sí/no). Atiende los reportes de faltantes |
+| Cocina | Define la receta de cada plato. Ve la cola. Inicia, termina o cancela ítems pendientes. Reporta faltantes |
+| Mesero | Registra pedidos para una mesa y queda asignado a ese pedido. Ve los ítems listos. Marca entregado. Cancela ítems pendientes a petición del cliente |
+| Caja | Registra pagos parciales de la cuenta de una mesa |
+
+No hay autenticación: el rol se selecciona en la interfaz.
+
+## Estados de un ítem
+
+```
+PENDIENTE -> EN_PREPARACION -> LISTO -> ENTREGADO
+PENDIENTE -> CANCELADO
+```
+
+- CANCELADO es terminal. No existe transición de salida.
+- Ninguna transición puede saltarse un paso ni retroceder.
+- Cocina hace PENDIENTE -> EN_PREPARACION -> LISTO y puede cancelar ítems PENDIENTE.
+- Mesero hace LISTO -> ENTREGADO y puede cancelar ítems PENDIENTE.
+
+## Invariantes (las cuatro reglas del negocio predominante)
+
+1. **Cada ítem avanza por sus propios estados.** El pedido está *completo* cuando todos sus ítems están en LISTO o CANCELADO. Está *anulado* cuando todos están en CANCELADO.
+2. **Un plato sin ingredientes disponibles no se puede pedir y deja de ofrecerse.** Un plato se ofrece solo si tiene receta registrada y todos sus ingredientes están disponibles.
+3. **Un ítem se puede cancelar solo si la cocina no lo empezó**, es decir, solo desde PENDIENTE. Cualquier otro intento se rechaza con error.
+4. **La cuenta de una mesa admite varios pagos parciales.** La suma de los pagos, sin contar propina, nunca puede superar el total.
+
+## Dueño único de cada concepto derivado
+
+Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplicado en ninguna tabla.
+
+| Concepto | Se deriva de |
+|---|---|
+| Estado del pedido | Los estados de sus ítems |
+| Disponibilidad de un plato | Su receta y la disponibilidad de sus ingredientes |
+| Total de la cuenta | Suma de los precios congelados de los ítems no cancelados de la mesa |
+| Saldo pendiente | Total menos la suma de los pagos |
+| Antigüedad en la cola | Fecha de creación del ítem |
+| Precio cobrado | El precio congelado en el ítem de pedido, nunca el precio actual del plato |
+
+## Consultas obligatorias
+
+- **Cola de cocina:** ítems en PENDIENTE y EN_PREPARACION, agrupados por pedido, ordenados **estrictamente** por antigüedad. Excluye pedidos anulados. Refresco cada pocos segundos.
+- **Vista del mesero:** ítems en LISTO de los pedidos asignados a ese mesero.
+
+## Reglas que el agente no debe romper
+
+- No introducir un estado nuevo para salir de EN_PREPARACION. Si falta un ingrediente, la cancelación ocurre antes de iniciar.
+- No guardar en columnas los valores derivados de la tabla anterior.
+- No borrar pedidos ni ítems. Un pedido con todos los ítems cancelados se excluye de la cola y de la cuenta, pero permanece en la base de datos.
+- No agregar ítems a un pedido ya creado. Una ronda o una alternativa es un pedido nuevo.
+- No aceptar pagos si quedan ítems no cancelados sin entregar en la mesa.
+- No inventar firmas de API ni de librerías. Verificar contra la documentación oficial antes de escribir.
+- Registrar la marca de tiempo de cada transición de estado.
+
+## Stack
+
+Pendiente de ADR-002 y ADR-003. Hasta entonces, no crear estructura de proyecto.
+
+## Convenciones
+
+- Idioma del código y los identificadores: pendiente de definir junto con el stack.
+- Mensajes de commit: explican **qué se decidió**, no qué archivo se tocó.
+- Todo supuesto nuevo que el agente tenga que resolver por su cuenta se anota en `ASSUMPTIONS.md` en el mismo cambio.
