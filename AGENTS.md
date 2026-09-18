@@ -74,6 +74,12 @@ Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplica
 - No aceptar pagos si quedan ítems no cancelados sin entregar en la mesa.
 - No inventar firmas de API ni de librerías. Verificar contra la documentación oficial antes de escribir.
 - Registrar la marca de tiempo de cada transición de estado.
+- La restricción `CHECK (NOT (estado = 'CANCELADO' AND iniciado_en IS NOT NULL))`
+  de `item_pedido` no se elimina ni se relaja. Si una operación la activa, el
+  error está en el código que intentó cancelar un ítem ya iniciado, no en la
+  restricción. Corregir la operación, nunca el esquema.
+- Al pasar un ítem a `EN_PREPARACION`, escribir `iniciado_en` en la misma
+  sentencia UPDATE que el cambio de estado.
 
 ## Stack
 
