@@ -82,7 +82,8 @@ CREATE TABLE item_pedido (
     -- Unico lugar que restringe los valores validos del estado. Un
     -- valor fuera de esta lista es rechazado por la base de datos.
     estado           TEXT NOT NULL DEFAULT 'PENDIENTE'
-                     CHECK (estado IN ('PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO')),
+                     CHECK (estado IN ('PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO'))
+                     CHECK (NOT (estado = 'CANCELADO' AND iniciado_en IS NOT NULL)),
     creado_en        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     iniciado_en      TEXT,
     listo_en         TEXT,
