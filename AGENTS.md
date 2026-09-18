@@ -77,10 +77,27 @@ Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplica
 
 ## Stack
 
-Pendiente de ADR-002 y ADR-003. Hasta entonces, no crear estructura de proyecto.
+- Python 3 con Flask y plantillas Jinja2. Vistas renderizadas en el servidor, una por rol.
+- SQLite con el módulo `sqlite3` de la librería estándar. Modo WAL.
+- SQL escrito a mano. No usar ORM.
+- Sin dependencias de frontend: nada de Node, npm ni frameworks de JavaScript.
+
+Ver ADR-002 y ADR-003.
+
+### Cómo se escriben las transiciones de estado
+
+Siempre como una sola sentencia condicionada al estado previo, nunca leyendo y
+luego escribiendo:
+
+    UPDATE item_pedido SET estado = 'CANCELADO'
+     WHERE id = ? AND estado = 'PENDIENTE';
+
+Si afecta cero filas, la operación se rechaza. El módulo `sqlite3` no abre
+transacción antes de un SELECT, así que leer y después escribir deja una
+carrera abierta.
 
 ## Convenciones
 
-- Idioma del código y los identificadores: pendiente de definir junto con el stack.
+- Idioma del código y los identificadores: nombres de dominio en español (plato, pedido, item_pedido, mesa, mesero, ingrediente), el resto del código en inglés.
 - Mensajes de commit: explican **qué se decidió**, no qué archivo se tocó.
 - Todo supuesto nuevo que el agente tenga que resolver por su cuenta se anota en `ASSUMPTIONS.md` en el mismo cambio.
