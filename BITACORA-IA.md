@@ -92,3 +92,114 @@ También me corrigió dos imprecisiones de modelado: que la receta no es una ent
 
 Las cuatro son el criterio de aceptación de la fase F1 y se verifican al escribir `app/db.py`.
 
+## Sesión 4 — 19 de septiembre de 2026
+
+**Herramienta:** Claude Code (construcción), chat de Claude (revisión y decisiones).
+
+Sesión dedicada a cerrar la fase F1: conexión a la base de datos, fábrica de la aplicación y verificación de que las garantías del esquema funcionan de verdad. En el camino se decidió y documentó la arquitectura.
+
+---
+
+### Conexión a la base de datos
+
+**Qué le pedí.** Escribir `app/db.py`, solo ese archivo, sin rutas ni lógica de negocio. El prompt completo está en `prompts/db.md`. Las exigencias fueron seis: conexión por petición y no global, `PRAGMA foreign_keys = ON` en cada conexión, modo WAL, filas accesibles por nombre de columna, un comando que cree la base desde `esquema.sql` y `semilla.sql`, y una forma explícita de abrir transacción para operaciones de varias sentencias.
+
+Cada una responde a un comportamiento por omisión que habría roto una garantía del esquema: SQLite trae las claves foráneas apagadas y el ajuste es por conexión; el módulo `sqlite3` impide usar una conexión desde otro hilo; y el módulo solo abre transacción implícita antes de INSERT, UPDATE, DELETE o REPLACE, nunca antes de un SELECT.
+
+**Qué propuso.** Cumplió los seis puntos, y tomó por su cuenta dos decisiones que no estaban en mi instrucción:
+
+*`isolation_level=None`.* En vez de convivir con el comportamiento implícito de transacciones del módulo, lo apaga del todo: ninguna sentencia abre transacción por su cuenta, y donde hace falta una se abre a mano. La acepté porque es más predecible que depender de cuándo el módulo decide abrirla.
+
+*`BEGIN IMMEDIATE` en lugar de `BEGIN`.* Con `BEGIN` a secas SQLite empieza como transacción de lectura y solo toma el candado de escritura al llegar la primera escritura, lo cual deja un hueco entre leer el saldo de una cuenta y registrar el pago. `IMMEDIATE` toma el candado desde el principio. Es el detalle más fino del archivo y lo acepté por esa razón.
+
+**Qué corregí.** Un comentario de `create_app()` afirmaba que `instance_relative_config=True` *hace que `app.instance_path` apunte a una carpeta `instance/`*. Según la documentación de Flask eso no es exacto: `instance_path` apunta ahí de todas formas, y lo que el parámetro cambia es que las rutas relativas al cargar archivos de configuración se resuelvan contra esa carpeta. Como la configuración se pasa con `from_mapping` y una ruta absoluta, el parámetro no está haciendo nada funcional. El código está bien; el comentario explicaba mal el motivo.
+
+---
+
+### Decisión de arquitectura
+
+**Qué planteé.** Propuse revisar si convenía una arquitectura orientada a eventos con procesamiento asíncrono, en vez de la organización en capas que veníamos usando sin haberla documentado. La intuición venía del dominio: una cola de cocina se parece a una cola de mensajes.
+
+**Qué salió de la discusión.** Primero, que estaba mezclando dos decisiones distintas: cómo se organiza el código por dentro, que son las capas, y cómo se procesan las operaciones, que es la parte síncrona o asíncrona. No son alternativas entre sí.
+
+Segundo, y decisivo: el procesamiento asíncrono **debilitaría** la garantía principal del sistema en lugar de reforzarla. Entre publicar un evento y procesarlo pasa tiempo, y en ese intervalo el estado puede cambiar. Si un mesero publica "cancelar ítem" y un instante después la cocina publica "iniciar ítem", el resultado dependería del orden de procesamiento, y corregir esa inconsistencia exigiría transacciones compensatorias. Con procesamiento síncrono el problema no existe: una sola sentencia condicionada al estado previo lo resuelve.
+
+Tercero, un argumento de operación: el mesero que cancela necesita saber en ese momento si procedió, porque tiene que decirle algo al cliente. Un "solicitud recibida" no sirve.
+
+**Qué decidí.** Capas con procesamiento síncrono, documentado en `ADR-004` con el modelo orientado a eventos como alternativa descartada. `docs/PLAN.md` quedó remitiendo a ese ADR, y se añadieron diagramas en Mermaid: capas y ciclo de vida del ítem en el ADR-004, y el recorrido entre roles en la fase F2.
+
+**Lo que sí se conserva del modelo de eventos.** El diseño ya incorpora la parte útil sin la infraestructura: cada transición es un evento con nombre dentro de una máquina de estados explícita, las marcas de tiempo por transición son el registro de esos eventos, y la cola de cocina es una cola real consultada por antigüedad. Lo que no se adopta es el procesamiento diferido.
+
+---
+
+### Fábrica de la aplicación
+
+**Qué le pedí.** `app/__init__.py` con `create_app()` y `requirements.txt`, nada más. El prompt está en `prompts/create-app.md`.
+
+**Las dos dudas que me dejó de la tarea anterior, y cómo las resolví.**
+
+*¿Dónde vive el archivo de la base?* En `instance/`, al mismo nivel que el paquete `app/`, no dentro de él. La documentación de Flask define esa carpeta como el lugar para archivos que no van bajo control de versiones y dependen del despliegue, que es exactamente el caso. Añadí que `create_app()` debe crearla con `os.makedirs(..., exist_ok=True)`, porque Flask no la crea sola y sin ella `init-db` falla.
+
+*¿Conviene agregar `PRAGMA busy_timeout`?* **No, y la premisa de la propuesta era incorrecta.** El agente argumentaba que un `BEGIN IMMEDIATE` que choca con otro escritor fallaría de inmediato con "database is locked". Al verificar en la documentación oficial del módulo `sqlite3` resultó que el parámetro `timeout` de `connect` **es** el tiempo de espera por bloqueo y vale **cinco segundos por omisión**. O sea que el comportamiento que proponía agregar ya estaba activo. Rechacé la propuesta con la cita y lo dejé como regla en `AGENTS.md`, para que no vuelva a proponerse en otra sesión.
+
+Este caso es el más instructivo de la sesión: el agente no propuso algo incorrecto por descuido, sino porque desconocía un valor por omisión. Aceptarlo habría añadido configuración redundante que después habría que explicar.
+
+**Lo que ninguno de los dos vio al principio.** El agente nombró el archivo `comanda.sqlite`, pero el `.gitignore` solo cubría `*.db`, `*.db-wal` y `*.db-shm`. La extensión `.sqlite` no coincidía con ninguna regla, así que la base se habría subido al repositorio. Se agregaron `instance/` y las variantes de `.sqlite`.
+
+---
+
+### Verificación de la fase F1
+
+Ejecutadas desde `flask shell`, con la base creada por `flask init-db`:
+
+| Comprobación | Resultado |
+|---|---|
+| `flask init-db` crea la base en `instance/` | Correcto |
+| `PRAGMA foreign_keys` devuelve 1 | Correcto |
+| `PRAGMA journal_mode` devuelve `wal` | Correcto |
+| Insertar un ítem con `pedido_id` inexistente lanza `IntegrityError` | Correcto |
+| El `CHECK` de cancelación rechaza un ítem cancelado con `iniciado_en` | Correcto |
+| `EXPLAIN QUERY PLAN` sobre la cola usa el índice parcial | Correcto |
+| Los datos semilla salen en orden de antigüedad | Correcto |
+
+La cuarta es la que de verdad cierra el criterio: que el pragma esté puesto y que las claves foráneas rechacen son cosas distintas, y solo el insert fallido demuestra la segunda.
+
+**Sobre el archivo `.db-wal`.** El agente señaló, correctamente, que ese archivo solo existe mientras hay una conexión abierta: al cerrarse la última, SQLite hace un punto de control y lo elimina. La prueba permanente de que el modo quedó activo es que `PRAGMA journal_mode` devuelva `wal`, no que el archivo esté en disco.
+
+---
+
+### Decisión sobre reinicializar la base
+
+`flask init-db` ejecutado dos veces falla con `table mesa already exists`, porque `init_db()` no borra nada antes.
+
+El agente recomendó documentarlo en el README en vez de añadir `DROP TABLE IF EXISTS`, argumentando el riesgo de borrar datos reales por accidente.
+
+**Acepté la conclusión pero no ese argumento.** En este proyecto no hay datos reales que proteger: la base se genera desde `semilla.sql`, el despliegue está fuera de alcance y el archivo no va al repositorio. La razón válida es otra: el comando falla de forma ruidosa y con un mensaje claro, y un comando que no puede destruir nada por accidente es preferible a uno que sí. Reiniciar queda como una acción deliberada y separada.
+
+Quedó como supuesto A-34 y documentado en el README con el comando de reinicio.
+
+---
+
+### Ejecución del proyecto
+
+El README quedó con los pasos verificados desde cero:
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+flask --app app init-db
+flask --app app run
+```
+
+Y el reinicio de la base como paso aparte, borrando `instance/comanda.sqlite` antes de volver a inicializar.
+
+---
+
+### Estado al cierre
+
+**La fase F1 queda cerrada.** La base de datos existe, se crea con un comando, y sus garantías están verificadas y no solo revisadas.
+
+**Lo siguiente es F2**, el flujo principal: `reglas.py` con las transiciones de estado, `consultas.py` con la cola de cocina y la vista del mesero, y las rutas y plantillas por rol. Es la fase que decide el proyecto, porque sin un recorrido completo de punta a punta no hay sistema que mostrar.
+
+**Qué queda sin verificar.** Nada de F1. De lo que viene, todo.
