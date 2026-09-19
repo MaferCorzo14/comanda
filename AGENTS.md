@@ -90,6 +90,54 @@ Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplica
 
 Ver ADR-002 y ADR-003.
 
+### Base de datos
+ 
+- El archivo vive en `instance/comanda.sqlite`, la carpeta que Flask reserva
+  para lo que depende del despliegue y no va a control de versiones.
+  `create_app()` la crea con `os.makedirs(app.instance_path, exist_ok=True)`:
+  Flask no la crea sola.
+ 
+- **No agregar `PRAGMA busy_timeout`.** El parámetro `timeout` de
+  `sqlite3.connect` ya es el tiempo de espera por bloqueo y vale cinco
+  segundos por omisión. Un `BEGIN IMMEDIATE` que choca con otro escritor
+  ya espera y reintenta; el pragma sería redundante. Verificado en la
+  documentación oficial del módulo `sqlite3`.
+ 
+- La conexión se abre con `isolation_level=None`, o sea en autocommit puro:
+  ninguna sentencia abre transacción por su cuenta. No cambiar esto por el
+  comportamiento implícito del módulo, que solo abre transacción antes de
+  INSERT, UPDATE, DELETE o REPLACE y deja los SELECT sin proteger.
+ 
+- Una operación de varias sentencias se abre con `BEGIN IMMEDIATE`, no con
+  `BEGIN` a secas. `BEGIN` empieza como transacción de lectura y solo toma
+  el candado de escritura al llegar la primera escritura, lo cual deja un
+  hueco entre leer el saldo y registrar el pago.
+ 
+- `init-db` crea, no reinicia. Si la base ya existe, el comando falla en vez
+  de sobrescribirla. No agregar `DROP TABLE IF EXISTS` al esquema: reiniciar
+  es una acción explícita, documentada en el README.
+
+ 
+## Marcas de tiempo
+ 
+### Fechas y horas
+ 
+- Se guardan en UTC, en formato ISO 8601, con
+  `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
+ 
+- **No agregar `%S` a ese formato.** En SQLite, `%f` significa "fractional
+  seconds: SS.SSS", o sea que ya incluye los segundos. Escribir `%S.%f`
+  los duplicaría.
+ 
+- El formato es fijo y con ceros delante a propósito: así ordenar como texto
+  equivale a ordenar cronológicamente, que es de lo que depende el
+  `ORDER BY creado_en` de la cola.
+ 
+- Al mostrar una hora en una plantilla, convertirla a la zona local. La base
+  guarda UTC y Colombia está en UTC−5: mostrar el valor crudo haría que la
+  cocina viera horas que no coinciden con el reloj.
+
+
 ### Cómo se escriben las transiciones de estado
 
 Siempre como una sola sentencia condicionada al estado previo, nunca leyendo y
