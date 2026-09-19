@@ -9,6 +9,7 @@ Las decisiones no se editan una vez aceptadas. Si una deja de ser válida, se es
 | [001](ADR-001-herramienta-de-ia.md) | Herramienta de IA | Aceptada | 18/09/2026 |
 | [002](ADR-002-lenguaje-y-framework.md) | Lenguaje y framework web | Aceptada | 18/09/2026 |
 | [003](ADR-003-persistencia.md) | Persistencia y control de concurrencia | Aceptada | 18/09/2026 |
+| [004](ADR-004-arquitectura.md) | Arquitectura en capas con procesamiento síncrono | Aceptada | 19/09/2026 |
 
 ## Formato
 
