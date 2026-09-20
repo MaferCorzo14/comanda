@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-from . import cocina, mesero, principal
+from . import administrador, cocina, mesero, principal
 
 # Colombia no observa horario de verano: UTC-5 fijo todo el anio, asi que
 # no hace falta una base de datos de zonas horarias (evita depender de
@@ -37,5 +37,6 @@ def init_app(app):
     app.register_blueprint(principal.bp)
     app.register_blueprint(cocina.bp)
     app.register_blueprint(mesero.bp)
+    app.register_blueprint(administrador.bp)
     app.jinja_env.filters["hora_local"] = hora_local
     app.jinja_env.filters["hace"] = hace
