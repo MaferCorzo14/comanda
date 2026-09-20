@@ -80,6 +80,9 @@ Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplica
   restricción. Corregir la operación, nunca el esquema.
 - Al pasar un ítem a `EN_PREPARACION`, escribir `iniciado_en` en la misma
   sentencia UPDATE que el cambio de estado.
+- No construir más de lo que pide la tarea. Si una tarea depende de algo
+  de otra fase, decirlo y esperar, en vez de implementarlo por cuenta propia.
+  El plan por fases existe para que cada entrega se revise completa.
 
 ## Stack
 
