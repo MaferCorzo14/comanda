@@ -37,3 +37,13 @@ def listo(item_id):
     except reglas.TransicionInvalida as e:
         flash(str(e), "error")
     return redirect(url_for("cocina.cola"))
+
+
+@bp.route("/items/<int:item_id>/cancelar", methods=["POST"])
+def cancelar(item_id):
+    db = get_db()
+    try:
+        reglas.cancelar_item(db, item_id)
+    except reglas.TransicionInvalida as e:
+        flash(str(e), "error")
+    return redirect(url_for("cocina.cola"))
