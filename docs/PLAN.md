@@ -106,24 +106,24 @@ sequenceDiagram
     actor mesero as Mesero
     participant sistema as Sistema
     actor cocina as Cocina
- 
+
     rect rgba(190, 120, 120, 0.12)
-        Note over admin, cocina: Regla 2 — un plato sin ingredientes no se ofrece ni se puede pedir
+        Note over admin, cocina: Regla 2 - un plato sin ingredientes no se ofrece ni se puede pedir
         admin->>sistema: marca un ingrediente como agotado
-        Note over sistema: la disponibilidad se calcula desde la receta;<br/>no hay columna que la guarde
+        Note over sistema: la disponibilidad se calcula<br/>desde la receta, no se guarda
         sistema-->>mesero: el plato desaparece del menú
         mesero->>sistema: lo pide igualmente, sin pasar por el menú
         sistema-->>mesero: RECHAZADO, dentro de la transacción
     end
- 
+
     rect rgba(110, 150, 200, 0.12)
-        Note over admin, cocina: Regla 3 — un ítem se cancela solo si la cocina no lo empezó
+        Note over admin, cocina: Regla 3 - un ítem se cancela solo si la cocina no lo empezó
         cocina->>sistema: cancela un ítem en PENDIENTE
         sistema-->>cocina: CANCELADO, se registra cancelado_en
         cocina->>sistema: inicia otro ítem
-        Note over sistema: EN_PREPARACION,<br/>se registra iniciado_en
+        Note over sistema: EN_PREPARACION<br/>se registra iniciado_en
         cocina->>sistema: intenta cancelar el que ya inició
-        sistema-->>cocina: RECHAZADO por el UPDATE condicionado y por el CHECK
+        sistema-->>cocina: RECHAZADO por el UPDATE y por el CHECK
     end
 ```
 
