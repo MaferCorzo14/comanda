@@ -42,7 +42,7 @@ PENDIENTE -> CANCELADO
 
 ## Invariantes (las cuatro reglas del negocio predominante)
 
-1. **Cada ítem avanza por sus propios estados.** El pedido está *completo* cuando todos sus ítems están en LISTO o CANCELADO. Está *anulado* cuando todos están en CANCELADO.
+1. **Cada ítem avanza por sus propios estados.** El estado del pedido se calcula a partir de sus ítems, comprobado en este orden: *anulado* cuando todos están en CANCELADO; *entregado* cuando todos están en ENTREGADO o CANCELADO; *completo* cuando todos están en LISTO, ENTREGADO o CANCELADO; *en curso* en cualquier otro caso.
 2. **Un plato sin ingredientes disponibles no se puede pedir y deja de ofrecerse.** Un plato se ofrece solo si tiene receta registrada y todos sus ingredientes están disponibles.
 3. **Un ítem se puede cancelar solo si la cocina no lo empezó**, es decir, solo desde PENDIENTE. Cualquier otro intento se rechaza con error.
 4. **La cuenta de una mesa admite varios pagos parciales.** La suma de los pagos, sin contar propina, nunca puede superar el total.

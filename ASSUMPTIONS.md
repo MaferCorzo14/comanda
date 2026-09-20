@@ -18,8 +18,8 @@ Evita vender algo cuya preparación cocina no ha definido.
 **A-04. Los estados de un ítem son PENDIENTE, EN_PREPARACION, LISTO, ENTREGADO y CANCELADO.**
 El enunciado no los enumera.
 
-**A-05. "El pedido está completo" significa que todos sus ítems están en LISTO o CANCELADO.**
-Completo equivale a listo para entregar. Un ítem cancelado cuenta como resuelto; si no, un pedido con una cancelación nunca podría cerrarse.
+**A-05. El estado del pedido tiene cuatro valores: ANULADO, ENTREGADO, COMPLETO y EN_CURSO, comprobados en ese orden.**
+ANULADO cuando todos los ítems están CANCELADO. ENTREGADO cuando todos están ENTREGADO o CANCELADO. COMPLETO cuando todos están LISTO, ENTREGADO o CANCELADO (listos para entregar, así no se hayan entregado todos aún). EN_CURSO en cualquier otro caso. Un ítem cancelado cuenta como resuelto en los tres primeros; si no, un pedido con una cancelación nunca podría cerrarse. El orden de las comprobaciones importa porque los conjuntos se anidan unos en otros: un pedido totalmente ENTREGADO también cumple la condición de COMPLETO, así que hay que comprobar primero la condición más específica para no reportarlo como algo menos preciso de lo que es.
 
 **A-06. CANCELADO es terminal.**
 No se permite reactivar un ítem cancelado, para que no exista la transición "cancelado y luego habilitado de nuevo".
