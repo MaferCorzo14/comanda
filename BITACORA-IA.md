@@ -308,3 +308,86 @@ Esto convierte la regla del `AGENTS.md` sobre el filtro literal en una diferenci
 **F2 cerrada.** El recorrido completo funciona en el navegador: crear un pedido, verlo en la cola, iniciarlo, marcarlo listo, entregarlo, y ver el pedido pasar a entregado.
 
 Lo siguiente es F3, las reglas 2 y 3, con el registro de faltantes de cocina recortado por tiempo: no es ninguna de las cuatro reglas del enunciado y se hará solo si sobra tiempo después de F4 y del cierre.
+
+
+
+## Sesión 6 — 20 de septiembre de 2026
+
+**Herramienta:** Claude Code (construcción), chat de Claude (revisión y decisiones).
+
+Fase F3, las reglas 2 y 3: disponibilidad de platos y cancelación de ítems.
+
+---
+
+### Recorte de alcance antes de empezar
+
+El plan incluía en F3 que cocina registrara los faltantes para que el administrador los viera. Lo saqué antes de encargar la tarea.
+
+El motivo: **no es ninguna de las cuatro reglas del enunciado**. Salió de una decisión de flujo propia, el supuesto A-12, y con F4 y el cierre todavía por delante era lo primero que sobraba. Quedó en el plan como opcional, y mientras no exista, el aviso de cocina al administrador ocurre fuera del sistema, que es como funciona hoy en cualquier restaurante.
+
+---
+
+### Qué le pedí
+
+Implementar las reglas 2 y 3, sin tocar nada de F4. El prompt está en `prompts/`.
+
+Para la regla 3, cancelar un ítem siguiendo el mismo patrón que las demás transiciones: una sola sentencia condicionada al estado previo, escribiendo `cancelado_en` a la vez, y solo desde `PENDIENTE`. Con botón en las vistas de cocina y de mesero, porque las dos pueden cancelar.
+
+Para la regla 2, reponer la validación en `crear_pedido` que se había quitado al recortar F2, con una condición explícita: **dentro de la transacción**, no en la ruta antes de llamarla. Dentro, el candado de escritura ya está tomado y nadie puede agotar un ingrediente entre la comprobación y la creación; fuera, quedaría un hueco.
+
+Más una vista de administrador con lo mínimo para operar la regla: listar ingredientes, marcarlos como agotados o disponibles, y ver qué platos se están ofreciendo.
+
+---
+
+### El hueco que apareció al usar el sistema
+
+Al registrar un pedido en el navegador me di cuenta de que **el formulario usaba casillas de verificación**, así que un mesero no podía pedir tres hamburguesas: cada plato solo se marcaba una vez.
+
+La lógica sí lo soportaba. `crear_pedido` recibe una lista de identificadores, y repetir uno crea varios ítems, que es exactamente lo que exige el supuesto A-08. El modelo de datos era correcto y la interfaz no lo aprovechaba.
+
+Se corrigió con un campo de cantidad por plato. **La traducción de cantidades a lista repetida va en la ruta**, no en `reglas.py`: interpretar lo que envía un formulario es trabajo de la capa que habla HTTP, y el dominio sigue recibiendo una lista de identificadores sin enterarse de que existen cantidades.
+
+También se añadió un límite de cantidad por plato y de ítems por pedido, para que una petición enviada directamente no pueda crear miles de filas de golpe. Es validación de formulario, no regla de negocio.
+
+Es el segundo hallazgo del fin de semana que solo aparece usando el sistema, no leyéndolo. El primero fue el estado del pedido tras la entrega.
+
+---
+
+### Verificación de la regla 2
+
+El escenario completo, que además sirve como demostración:
+
+1. El mesero registra un pedido con tres hamburguesas. Se crean tres ítems, uno por unidad.
+2. El administrador marca la carne como agotada.
+3. La hamburguesa **desaparece del menú** del mesero al recargar el formulario.
+4. Envié de todas formas la petición de crear el pedido con ese plato, con `Invoke-WebRequest`, sin pasar por el formulario. **Se rechazó** con el mensaje "el plato 6 no esta disponible", en la propia página del formulario y no con un error 500.
+
+El paso 4 es el que cierra el criterio. El menú filtrado es comodidad, no garantía: refleja el estado del momento en que se cargó la página. Si un mesero tiene el formulario abierto cuando el administrador agota un ingrediente, su navegador sigue ofreciendo ese plato y el envío llegaría igual. Por eso la validación está en el servidor, dentro de la transacción.
+
+---
+
+### Comportamientos que comprobé y resultaron correctos
+
+Dos cosas me parecieron errores al verlas y no lo eran. Las anoto porque en ambos casos el sistema estaba haciendo lo que yo misma había especificado.
+
+**Los ítems ya pedidos no se cancelan solos.** Tras agotar la carne, las tres hamburguesas del pedido 13 seguían en la cola en `PENDIENTE`, y el pedido seguía en curso. Es el supuesto A-14: la regla 2 impide **pedir** un plato agotado, no anula lo ya pedido. La cancelación la decide la cocina.
+
+**La cocina puede iniciar un ítem cuyo ingrediente se agotó.** El sistema no lo bloquea, y es deliberado: ninguna de las cuatro reglas lo pide. La regla 2 impide pedir, no preparar. Quien verifica los ingredientes antes de empezar es la cocina como persona, según el supuesto A-12, y lo que el sistema sí garantiza es que pueda cancelar el ítem mientras esté pendiente. Queda como mejora no implementada marcar visualmente en la cola los ítems cuyo plato dejó de estar disponible: sería ayuda visual, no una regla.
+
+**Un pedido con parte entregada y parte cancelada figura como entregado.** El pedido 13 terminó con dos hamburguesas entregadas y una cancelada, y su estado calculado pasó a *entregado*. Me chocó que dijera eso faltando un ítem, pero coincide con lo que decidí el primer día: un ítem cancelado cuenta como resuelto, porque si no, ese pedido quedaría abierto para siempre y la mesa nunca se podría cobrar. Queda como mejora de presentación mostrar el desglose, del tipo "entregado, 2 entregados y 1 cancelado", para que la palabra no esconda la cancelación.
+
+---
+
+### Verificación de la regla 3
+
+Con el mismo pedido 13: cocina canceló un ítem en `PENDIENTE` y preparó los otros dos.
+
+*(Completar con el resultado de las pruebas restantes: que un pedido con todos los ítems cancelados quede anulado y siga existiendo en la base, y que un ítem ya iniciado no se pueda cancelar ni desde el botón ni por HTTP.)*
+
+---
+
+### Estado al cierre
+
+**F3 cerrada.** Las reglas 2 y 3 están implementadas y verificadas, con el registro de faltantes declarado como opcional y no implementado.
+
+Lo siguiente es F4, la cuenta y los pagos parciales. Queda preparado en la base un caso útil para probarla: la mesa 1 tiene un pedido con dos hamburguesas entregadas y una cancelada, así que su cuenta debe sumar dos y no tres. Es el supuesto A-20, que un plato cancelado nunca llegó a la mesa y no se cobra.
