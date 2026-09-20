@@ -83,6 +83,24 @@ def items_listos_de_mesero(db, mesero_id):
     ).fetchall()
 
 
+def items_pendientes_de_mesero(db, mesero_id):
+    """Garantiza: los items en PENDIENTE de los pedidos de este mesero,
+    del mas antiguo al mas reciente, para que los pueda cancelar."""
+    return db.execute(
+        """
+        SELECT ip.id, ip.pedido_id, ip.estado, ip.creado_en, ip.nota,
+               pl.nombre AS plato_nombre, m.nombre AS mesa_nombre
+          FROM item_pedido ip
+          JOIN pedido p ON p.id = ip.pedido_id
+          JOIN plato pl ON pl.id = ip.plato_id
+          JOIN mesa m ON m.id = p.mesa_id
+         WHERE p.mesero_id = ? AND ip.estado = 'PENDIENTE'
+         ORDER BY ip.creado_en
+        """,
+        (mesero_id,),
+    ).fetchall()
+
+
 def mesas(db):
     """Garantiza: todas las mesas, para elegirlas en el formulario de pedido."""
     return db.execute("SELECT id, nombre FROM mesa ORDER BY id").fetchall()
@@ -100,10 +118,65 @@ def mesero_por_id(db, mesero_id):
     ).fetchone()
 
 
-def platos(db):
-    """Garantiza: todos los platos del menu. No filtra por disponibilidad:
-    la regla 2 todavia no esta implementada (queda para F3)."""
-    return db.execute("SELECT id, nombre, precio FROM plato ORDER BY nombre").fetchall()
+def platos_disponibles(db):
+    """Garantiza: solo los platos que se ofrecen ahora mismo: con receta
+    registrada y todos sus ingredientes disponibles (regla 2). Es la
+    misma condicion que plato_disponible, en una sola consulta para
+    listar el menu en vez de comprobar plato por plato."""
+    return db.execute(
+        """
+        SELECT p.id, p.nombre, p.precio
+          FROM plato p
+         WHERE EXISTS (
+                 SELECT 1 FROM plato_ingrediente pi WHERE pi.plato_id = p.id
+               )
+           AND NOT EXISTS (
+                 SELECT 1
+                   FROM plato_ingrediente pi
+                   JOIN ingrediente i ON i.id = pi.ingrediente_id
+                  WHERE pi.plato_id = p.id AND i.disponible = 0
+               )
+         ORDER BY p.nombre
+        """
+    ).fetchall()
+
+
+def platos_con_disponibilidad(db):
+    """Garantiza: todos los platos del menu, cada uno con un indicador
+    de si se esta ofreciendo ahora mismo, para que el administrador vea
+    el efecto de marcar un ingrediente agotado."""
+    return db.execute(
+        """
+        SELECT p.id, p.nombre, p.precio,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM plato_ingrediente pi WHERE pi.plato_id = p.id)
+                  AND NOT EXISTS (
+                        SELECT 1
+                          FROM plato_ingrediente pi
+                          JOIN ingrediente i ON i.id = pi.ingrediente_id
+                         WHERE pi.plato_id = p.id AND i.disponible = 0
+                      )
+                 THEN 1 ELSE 0
+               END AS disponible
+          FROM plato p
+         ORDER BY p.nombre
+        """
+    ).fetchall()
+
+
+def ingredientes(db):
+    """Garantiza: todos los ingredientes con su disponibilidad actual."""
+    return db.execute(
+        "SELECT id, nombre, disponible FROM ingrediente ORDER BY nombre"
+    ).fetchall()
+
+
+def ingrediente_por_id(db, ingrediente_id):
+    """Garantiza: los datos de un ingrediente, o None si ese id no existe."""
+    return db.execute(
+        "SELECT id, nombre, disponible FROM ingrediente WHERE id = ?",
+        (ingrediente_id,),
+    ).fetchone()
 
 
 def pedidos_de_mesero(db, mesero_id):
