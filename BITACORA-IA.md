@@ -203,3 +203,108 @@ Y el reinicio de la base como paso aparte, borrando `instance/comanda.sqlite` an
 **Lo siguiente es F2**, el flujo principal: `reglas.py` con las transiciones de estado, `consultas.py` con la cola de cocina y la vista del mesero, y las rutas y plantillas por rol. Es la fase que decide el proyecto, porque sin un recorrido completo de punta a punta no hay sistema que mostrar.
 
 **Qué queda sin verificar.** Nada de F1. De lo que viene, todo.
+
+## Sesión 5 — 20 de septiembre de 2026
+
+**Herramienta:** Claude Code (construcción), chat de Claude (revisión y decisiones).
+
+Fase F2, el flujo principal. El encargo se partió en dos: primero la lógica sin HTTP, después las rutas y las plantillas. El prompt de la primera parte salió al final de la sesión anterior; los prompts completos están en `prompts/`.
+
+---
+
+### Primera parte: reglas y consultas
+
+**Qué le pedí.** `app/reglas.py` con las cuatro transiciones del flujo principal, y `app/consultas.py` con la cola de cocina, los ítems listos del mesero y el estado calculado del pedido. Sin rutas, sin plantillas: ninguno de los dos módulos debía saber que existe HTTP.
+
+Partí el trabajo así a propósito. La lógica se puede probar entera desde `flask shell` antes de que exista una sola página, y es la parte que más conviene revisar línea por línea. Si el tiempo se hubiera acabado, tener la lógica correcta con la interfaz a medias era mejor que al revés.
+
+**Qué decidió el agente por su cuenta.** Le dejé elegir cómo informar un rechazo, entre una excepción propia del dominio o un resultado explícito, pidiéndole que justificara. Eligió una excepción, `TransicionInvalida`, con un mensaje que nombra el ítem y el estado esperado. Lo acepté: hace imposible que una operación rechazada pase inadvertida, y el módulo no devuelve códigos HTTP, que era la condición.
+
+**Qué rechacé: se adelantó a F3.** El agente implementó también la disponibilidad del plato, con una consulta `plato_disponible` y una validación dentro de `crear_pedido`. Es la regla 2, que según `docs/PLAN.md` corresponde a la fase siguiente.
+
+No era un disparate, porque hay una dependencia real: `crear_pedido` tiene que decidir qué platos acepta. Pero tres cosas pesaban en contra: el plan dejaría de describir el proyecto, el criterio de aceptación de F2 se volvería borroso, y acabaría revisando código que no tenía previsto revisar.
+
+Decidí recortar y respetar el plan. Se quitó la validación de `crear_pedido` y la excepción asociada, y se dejó `plato_disponible` en `consultas.py`, que es una lectura inerte y F3 la necesitaría igual. Quedó anotado en el docstring de `crear_pedido` que la ausencia es deliberada, y en la fase F3 del plan que al reponerla debe ir **dentro de la transacción**, no en la ruta: dentro, el candado de escritura ya está tomado y nadie puede agotar un ingrediente entre la comprobación y la creación.
+
+De ahí salió una línea nueva para `AGENTS.md`: no construir más de lo que pide la tarea; si una tarea depende de algo de otra fase, decirlo en vez de implementarlo.
+
+**La prueba que hice.** Iniciar el mismo ítem dos veces seguidas desde `flask shell`. La primera funcionó y la segunda lanzó `TransicionInvalida: el item 8 no esta en PENDIENTE, no se puede iniciar`.
+
+Esa prueba es la que demuestra que se comprueba `rowcount`: si no se comprobara, el segundo intento pasaría en silencio y la garantía sería falsa. Y es el mismo mecanismo que resuelve la carrera entre cancelar e iniciar, porque no depende del orden de llegada sino del estado que tenga la fila en el instante del `UPDATE`.
+
+---
+
+### Segunda parte: rutas y plantillas
+
+**Qué le pedí.** Un blueprint por rol, plantillas Jinja2, y tres condiciones explícitas: que las rutas no validen nada antes de llamar a la regla, que toda operación que cambia estado sea POST seguida de redirección, y que la identidad viaje en la URL sin sesión de usuario.
+
+**Sobre la identidad en la URL.** Con la autenticación fuera de alcance, `/mesero/3` evita montar sesiones y contraseñas. La consecuencia, que acepté conscientemente: `mesero_id` no es una credencial. Nada impide que un mesero marque como entregado un ítem de otro armando la URL. Sirve para saber a qué panel volver, no para autorizar. Comprobar la pertenencia daría una falsa sensación de control sobre un sistema que no autentica a nadie.
+
+**Qué encontré al revisar el código.**
+
+*`crear_pedido` era la única ruta sin `try`.* Si alguien enviaba un `mesa_id` inexistente por HTTP, la clave foránea lanzaba `IntegrityError`, nadie la atrapaba y salía una página de error 500. En la interfaz no pasa, porque el formulario solo ofrece mesas reales, pero el criterio de aceptación de F2 habla justamente de peticiones enviadas sin pasar por la interfaz. Se corrigió para rechazar con mensaje.
+
+*La validación del formulario sí va en la ruta, y está bien.* Que falte la mesa o no haya platos marcados es un formulario incompleto, no una regla de negocio. Validar la forma de la entrada es trabajo de la ruta; decidir si la operación es legítima es trabajo de `reglas.py`.
+
+*Los botones condicionados en la plantilla no contradicen la regla de oro.* La plantilla decide qué botón mostrar, que es presentación; no decide si la operación es válida. La prueba es que enviando la petición sin botón de por medio el servidor la rechaza igual.
+
+*Riesgo de fecha nula.* Los filtros de hora aplican `strptime` sobre el valor de la base, y `iniciado_en`, `listo_en` y `entregado_en` están vacíos hasta que ocurre la transición. Al revisar resultó que cada filtro se aplica solo donde el estado garantiza que la marca existe: la cola usa `creado_en`, que nunca es nulo, y la tabla de listos solo contiene ítems en `LISTO`. La garantía era correcta pero frágil, porque depende de que la consulta filtre por estado, así que se añadió una guarda en los filtros para devolver un guion cuando el valor es nulo.
+
+---
+
+### El hueco de especificación que apareció al ejecutar
+
+Al recorrer el flujo completo en el navegador, el pedido #7 se quedó en "en curso" después de entregar todos sus ítems.
+
+El código era **correcto respecto a lo escrito**: el supuesto A-05 definía completo como "todos los ítems en `LISTO` o `CANCELADO`", y un ítem entregado ya no está en `LISTO`. El pedido retrocedía.
+
+El hueco era del supuesto, no del código: al definirlo nunca contemplamos qué pasa **después** de entregar. Se corrigió con cuatro estados, comprobados en orden:
+
+1. **Anulado** — todos los ítems `CANCELADO`.
+2. **Entregado** — todos `ENTREGADO` o `CANCELADO`.
+3. **Completo** — todos `LISTO`, `ENTREGADO` o `CANCELADO`. Es "listo para entregar", la definición original.
+4. **En curso** — cualquier otro caso.
+
+Anulado va primero porque un pedido con todos los ítems cancelados también cumpliría la condición de entregado. Y el tercero acepta `ENTREGADO` porque un pedido puede tener un plato ya llevado a la mesa y otro esperando en la barra: ese pedido está completo, no en curso.
+
+`ASSUMPTIONS.md` quedó actualizado con la definición de cuatro estados.
+
+**Lo que esto enseña:** no lo habría encontrado leyendo el código. Apareció al ejecutar el flujo de punta a punta, que es la diferencia entre revisar y verificar.
+
+---
+
+### Verificación del índice de la cola
+
+Comprobé con `EXPLAIN QUERY PLAN` que la consulta obligatoria usa el índice parcial, y de paso medí el costo de escribir el filtro de otra forma.
+
+Con el filtro literal que exige `AGENTS.md`:
+
+```
+SCAN item_pedido USING INDEX idx_item_pedido_cola
+```
+
+Un solo paso: recorre el índice, que solo contiene los ítems activos y ya ordenados por antigüedad.
+
+Con el filtro reescrito de forma equivalente (`estado != 'ENTREGADO' AND estado != 'CANCELADO'`):
+
+```
+SCAN item_pedido USING INDEX idx_item_pedido_no_cancelado
+USE TEMP B-TREE FOR ORDER BY
+```
+
+Dos pasos. SQLite no reconoce que puede usar el índice de la cola, recurre a otro y tiene que construir una estructura temporal solo para ordenar. Las dos consultas devuelven lo mismo, pero una ordena gratis y la otra paga un ordenamiento cada vez que la cocina refresca la pantalla.
+
+Esto convierte la regla del `AGENTS.md` sobre el filtro literal en una diferencia medible, no en una preferencia.
+
+---
+
+### Qué quedó sin verificar
+
+- La prueba por HTTP sobre un ítem ya entregado, enviada con `Invoke-WebRequest` sin pasar por la interfaz. *(completar con el resultado)*
+- El índice `idx_item_pedido_no_cancelado` apareció en el plan de la consulta de comparación. Hay que comprobar que tenga en el esquema el comentario que nombra la consulta que lo justifica; si ninguna lo usa, contradice la política del propio esquema de no tener índices que nadie aproveche.
+
+### Estado al cierre
+
+**F2 cerrada.** El recorrido completo funciona en el navegador: crear un pedido, verlo en la cola, iniciarlo, marcarlo listo, entregarlo, y ver el pedido pasar a entregado.
+
+Lo siguiente es F3, las reglas 2 y 3, con el registro de faltantes de cocina recortado por tiempo: no es ninguna de las cuatro reglas del enunciado y se hará solo si sobra tiempo después de F4 y del cierre.
