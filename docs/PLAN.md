@@ -51,7 +51,7 @@ Definir qué se construye y con qué, antes de escribir código.
 
 *Nota: el ADR-004, sobre arquitectura, se redactó durante F1, al replantear si convenía un modelo orientado a eventos.*
 
-### F1. Persistencia — en curso
+### F1. Persistencia — completada
 
 La base de datos existe y sus garantías funcionan.
 
@@ -65,7 +65,7 @@ La base de datos existe y sus garantías funcionan.
 3. Insertar un ítem con un pedido inexistente falla.
 4. La consulta de la cola devuelve los datos semilla en el orden correcto y `EXPLAIN QUERY PLAN` confirma que usa el índice parcial.
 
-### F2. Flujo principal
+### F2. Flujo principal — completada 
 
 El recorrido completo de un pedido, de punta a punta. Es la fase que no puede faltar: sin ella no hay sistema.
 
@@ -83,7 +83,7 @@ sequenceDiagram
     cocina->>sistema: marca el ítem listo
     sistema-->>mesero: aparece en su vista de listos
     mesero->>sistema: marca el ítem entregado
-    Note over sistema: cuando todos los ítems<br/>están LISTO o CANCELADO,<br/>el pedido está completo
+    Note over sistema: el estado del pedido se calcula<br/>desde sus ítems, no se guarda
 ```
 
 - `reglas.py` con las transiciones de estado.
@@ -93,9 +93,39 @@ sequenceDiagram
 
 **Criterio de aceptación:** se puede crear un pedido en el navegador, verlo aparecer en la cola, avanzarlo hasta entregado, y el pedido queda completo cuando todos sus ítems lo están. Las transiciones inválidas se rechazan aunque se envíen directamente por HTTP, sin pasar por la interfaz.
 
-### F3. Disponibilidad y cancelación
+*Nota: al ejecutar el flujo apareció que el estado del pedido retrocedía tras la entrega. El código cumplía el supuesto A-05, pero ese supuesto no contemplaba el estado posterior a entregar. Se corrigió con cuatro estados calculados y se actualizó A-05.*
+
+### F3. Disponibilidad y cancelación — En curso
 
 Las reglas 2 y 3.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor admin as Administrador
+    actor mesero as Mesero
+    participant sistema as Sistema
+    actor cocina as Cocina
+ 
+    rect rgba(190, 120, 120, 0.12)
+        Note over admin, cocina: Regla 2 — un plato sin ingredientes no se ofrece ni se puede pedir
+        admin->>sistema: marca un ingrediente como agotado
+        Note over sistema: la disponibilidad se calcula desde la receta;<br/>no hay columna que la guarde
+        sistema-->>mesero: el plato desaparece del menú
+        mesero->>sistema: lo pide igualmente, sin pasar por el menú
+        sistema-->>mesero: RECHAZADO, dentro de la transacción
+    end
+ 
+    rect rgba(110, 150, 200, 0.12)
+        Note over admin, cocina: Regla 3 — un ítem se cancela solo si la cocina no lo empezó
+        cocina->>sistema: cancela un ítem en PENDIENTE
+        sistema-->>cocina: CANCELADO, se registra cancelado_en
+        cocina->>sistema: inicia otro ítem
+        Note over sistema: EN_PREPARACION,<br/>se registra iniciado_en
+        cocina->>sistema: intenta cancelar el que ya inició
+        sistema-->>cocina: RECHAZADO por el UPDATE condicionado y por el CHECK
+    end
+```
 
 - Administrador marca ingredientes como agotados o disponibles.
 - Un plato sin receta o con un ingrediente agotado desaparece del menú.
@@ -104,7 +134,7 @@ Las reglas 2 y 3.
 
 **Criterio de aceptación:** un plato con un ingrediente agotado no aparece en el menú del mesero, y el intento de pedirlo por HTTP se rechaza. Un ítem ya iniciado no se puede cancelar por ninguna vía.
 
-### F4. Cuenta y pagos
+### F4. Cuenta y pagos — Pendiente
 
 La regla 4.
 
@@ -114,7 +144,7 @@ La regla 4.
 
 **Criterio de aceptación:** la suma de los pagos nunca supera el total, no se acepta un pago si quedan ítems sin entregar, y los ítems cancelados no se cobran.
 
-### F5. Cierre
+### F5. Cierre — Pendiente
 
 **Condición de arranque:** F2 debe estar terminada y publicada. Si el flujo principal no corre, el tiempo de esta fase se usa en terminarlo, no en documentar.
 
