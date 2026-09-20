@@ -37,6 +37,36 @@
 </table>
 {% endif %}
 
+<h2>Items pendientes</h2>
+{% if not pendientes %}
+<p>No tienes items pendientes.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Mesa</th>
+            <th>Plato</th>
+            <th>Espera</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in pendientes %}
+        <tr>
+            <td>{{ item.mesa_nombre }}</td>
+            <td>{{ item.plato_nombre }}</td>
+            <td>{{ item.creado_en|hace }}</td>
+            <td>
+                <form method="post" action="{{ url_for('mesero.cancelar', mesero_id=mesero_id, item_id=item.id) }}">
+                    <button type="submit">Cancelar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
 <h2>Mis pedidos</h2>
 {% if not pedidos %}
 <p>Todavia no has registrado ningun pedido.</p>

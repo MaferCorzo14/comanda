@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block titulo %}Administrador{% endblock %}
+
+{% block contenido %}
+<h1>Administrador</h1>
+
+<h2>Ingredientes</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Ingrediente</th>
+            <th>Disponibilidad</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ingrediente in ingredientes %}
+        <tr>
+            <td>{{ ingrediente.nombre }}</td>
+            <td>{{ "Disponible" if ingrediente.disponible else "Agotado" }}</td>
+            <td>
+                {% if ingrediente.disponible %}
+                <form method="post" action="{{ url_for('administrador.marcar_agotado', ingrediente_id=ingrediente.id) }}">
+                    <button type="submit" class="boton-agotar">Marcar agotado</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('administrador.marcar_disponible', ingrediente_id=ingrediente.id) }}">
+                    <button type="submit" class="boton-disponible">Marcar disponible</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Efecto en el menu</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Plato</th>
+            <th>Se ofrece</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for plato in platos %}
+        <tr>
+            <td>{{ plato.nombre }}</td>
+            <td>{{ "Si" if plato.disponible else "No" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

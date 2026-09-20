@@ -4,6 +4,7 @@
     --borde: #d7dbdf;
     --acento: #2f6f4f;
     --error: #a3312a;
+    --advertencia: #b45309;
 }
 
 * {
@@ -88,6 +89,17 @@ button {
     cursor: pointer;
 }
 
+/* Distingue las dos acciones de disponibilidad en el panel de administrador. */
+.boton-disponible {
+    border-color: var(--acento);
+    background: var(--acento);
+}
+
+.boton-agotar {
+    border-color: var(--advertencia);
+    background: var(--advertencia);
+}
+
 fieldset {
     border: 1px solid var(--borde);
     border-radius: 0.5rem;
@@ -97,6 +109,12 @@ fieldset {
 .opcion-plato {
     display: block;
     padding: 0.25rem 0;
+}
+
+.cantidad-plato {
+    width: 3.5rem;
+    margin-right: 0.5rem;
+    padding: 0.2rem;
 }
 
 label {

@@ -36,6 +36,9 @@
                     <form method="post" action="{{ url_for('cocina.iniciar', item_id=item.id) }}">
                         <button type="submit">Iniciar</button>
                     </form>
+                    <form method="post" action="{{ url_for('cocina.cancelar', item_id=item.id) }}">
+                        <button type="submit">Cancelar</button>
+                    </form>
                     {% elif item.estado == 'EN_PREPARACION' %}
                     <form method="post" action="{{ url_for('cocina.listo', item_id=item.id) }}">
                         <button type="submit">Marcar listo</button>
