@@ -1,14 +1,10 @@
-"""Fabrica de la aplicacion Flask.
-
-Sin rutas, sin plantillas, sin logica de negocio: solo la construccion y
-configuracion de la app.
-"""
+"""Fabrica de la aplicacion Flask."""
 
 import os
 
 from flask import Flask
 
-from . import db
+from . import db, rutas
 
 
 def create_app():
@@ -19,6 +15,10 @@ def create_app():
 
     app.config.from_mapping(
         DATABASE=os.path.join(app.instance_path, "comanda.sqlite"),
+        # flash() firma la cookie de sesion con esta clave; sin ella
+        # lanza un error. No hay despliegue en el alcance del proyecto
+        # (ADR-002), asi que un valor fijo de desarrollo basta.
+        SECRET_KEY="dev",
     )
 
     # Flask no crea instance/ por su cuenta, y sin ella el comando de
@@ -26,5 +26,6 @@ def create_app():
     os.makedirs(app.instance_path, exist_ok=True)
 
     db.init_app(app)
+    rutas.init_app(app)
 
     return app
