@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block titulo %}Mesero{% endblock %}
+
+{% block contenido %}
+<h1>Mesero: {{ mesero_nombre }}</h1>
+
+<p><a href="{{ url_for('mesero.formulario_pedido', mesero_id=mesero_id) }}">Registrar nuevo pedido</a></p>
+
+<h2>Items listos para llevar</h2>
+{% if not listos %}
+<p>No hay items listos por ahora.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Mesa</th>
+            <th>Plato</th>
+            <th>Listo desde</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in listos %}
+        <tr>
+            <td>{{ item.mesa_nombre }}</td>
+            <td>{{ item.plato_nombre }}</td>
+            <td>{{ item.listo_en|hora_local }}</td>
+            <td>
+                <form method="post" action="{{ url_for('mesero.entregar', mesero_id=mesero_id, item_id=item.id) }}">
+                    <button type="submit">Marcar entregado</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Mis pedidos</h2>
+{% if not pedidos %}
+<p>Todavia no has registrado ningun pedido.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Pedido</th>
+            <th>Mesa</th>
+            <th>Creado</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pedido in pedidos %}
+        <tr>
+            <td>#{{ pedido.id }}</td>
+            <td>{{ pedido.mesa_nombre }}</td>
+            <td>{{ pedido.creado_en|hora_local }}</td>
+            <td>{{ pedido.estado }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

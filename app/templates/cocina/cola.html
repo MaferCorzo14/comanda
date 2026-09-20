@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block titulo %}Cocina{% endblock %}
+
+{% block refresco %}
+<meta http-equiv="refresh" content="10">
+{% endblock %}
+
+{% block contenido %}
+<h1>Cola de cocina</h1>
+
+{% if not grupos %}
+<p>No hay items pendientes ni en preparacion.</p>
+{% endif %}
+
+{% for grupo in grupos %}
+<section class="pedido">
+    <h2>Pedido #{{ grupo.pedido_id }} — {{ grupo.items_pedido[0].mesa_nombre }}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Plato</th>
+                <th>Estado</th>
+                <th>Espera</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in grupo.items_pedido %}
+            <tr>
+                <td>{{ item.plato_nombre }}{% if item.nota %} <span class="nota">({{ item.nota }})</span>{% endif %}</td>
+                <td>{{ item.estado }}</td>
+                <td>{{ item.creado_en|hace }}</td>
+                <td>
+                    {% if item.estado == 'PENDIENTE' %}
+                    <form method="post" action="{{ url_for('cocina.iniciar', item_id=item.id) }}">
+                        <button type="submit">Iniciar</button>
+                    </form>
+                    {% elif item.estado == 'EN_PREPARACION' %}
+                    <form method="post" action="{{ url_for('cocina.listo', item_id=item.id) }}">
+                        <button type="submit">Marcar listo</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endfor %}
+{% endblock %}

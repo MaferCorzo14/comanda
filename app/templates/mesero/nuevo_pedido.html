@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block titulo %}Nuevo pedido{% endblock %}
+
+{% block contenido %}
+<h1>Nuevo pedido — mesero #{{ mesero_id }}</h1>
+
+<form method="post" action="{{ url_for('mesero.crear_pedido', mesero_id=mesero_id) }}">
+    <label for="mesa_id">Mesa</label>
+    <select name="mesa_id" id="mesa_id" required>
+        {% for mesa in mesas %}
+        <option value="{{ mesa.id }}">{{ mesa.nombre }}</option>
+        {% endfor %}
+    </select>
+
+    <fieldset>
+        <legend>Platos</legend>
+        {% for plato in platos %}
+        <label class="opcion-plato">
+            <input type="checkbox" name="plato_id" value="{{ plato.id }}">
+            {{ plato.nombre }} — ${{ "{:,}".format(plato.precio) }}
+        </label>
+        {% endfor %}
+    </fieldset>
+
+    <button type="submit">Crear pedido</button>
+</form>
+{% endblock %}

@@ -1,0 +1,127 @@
+:root {
+    --texto: #1f2933;
+    --fondo: #f7f7f5;
+    --borde: #d7dbdf;
+    --acento: #2f6f4f;
+    --error: #a3312a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--texto);
+    background: var(--fondo);
+}
+
+.cabecera {
+    padding: 1rem 1.5rem;
+    background: var(--acento);
+}
+
+.cabecera .marca {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.contenido {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+h1, h2 {
+    margin-top: 0;
+}
+
+.tarjetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.tarjeta {
+    display: block;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--borde);
+    border-radius: 0.5rem;
+    background: white;
+    color: var(--texto);
+    text-decoration: none;
+}
+
+.pedido {
+    background: white;
+    border: 1px solid var(--borde);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--borde);
+}
+
+.nota {
+    color: #6b7280;
+    font-size: 0.9em;
+}
+
+button {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--acento);
+    border-radius: 0.4rem;
+    background: var(--acento);
+    color: white;
+    cursor: pointer;
+}
+
+fieldset {
+    border: 1px solid var(--borde);
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+
+.opcion-plato {
+    display: block;
+    padding: 0.25rem 0;
+}
+
+label {
+    display: block;
+    margin: 0.5rem 0 0.25rem;
+}
+
+select {
+    padding: 0.3rem;
+}
+
+.mensajes {
+    list-style: none;
+    margin: 0;
+    padding: 0.75rem 1.5rem 0;
+}
+
+.mensaje {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.mensaje-error {
+    background: #fbeaea;
+    color: var(--error);
+    border: 1px solid var(--error);
+}

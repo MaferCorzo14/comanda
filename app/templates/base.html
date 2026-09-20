@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Comanda{% endblock %} — Comanda</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+    {% block refresco %}{% endblock %}
+</head>
+<body>
+    <header class="cabecera">
+        <a href="{{ url_for('principal.index') }}" class="marca">Comanda</a>
+    </header>
+
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% if mensajes %}
+        <ul class="mensajes">
+            {% for categoria, mensaje in mensajes %}
+            <li class="mensaje mensaje-{{ categoria }}">{{ mensaje }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    {% endwith %}
+
+    <main class="contenido">
+        {% block contenido %}{% endblock %}
+    </main>
+</body>
+</html>

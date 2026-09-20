@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block titulo %}Inicio{% endblock %}
+
+{% block contenido %}
+<h1>Comanda</h1>
+
+<nav class="tarjetas">
+    <a class="tarjeta" href="{{ url_for('cocina.cola') }}">Cocina</a>
+
+    {% for mesero in meseros %}
+    <a class="tarjeta" href="{{ url_for('mesero.panel', mesero_id=mesero.id) }}">{{ mesero.nombre }}</a>
+    {% endfor %}
+</nav>
+{% endblock %}
