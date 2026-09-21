@@ -203,6 +203,110 @@ def pedidos_de_mesero(db, mesero_id):
     ]
 
 
+def mesa_por_id(db, mesa_id):
+    """Garantiza: los datos de una mesa, o None si ese id no existe."""
+    return db.execute("SELECT id, nombre FROM mesa WHERE id = ?", (mesa_id,)).fetchone()
+
+
+def _historia_completa_mesa(db, mesa_id):
+    """Trae, cada uno por su lado, todos los items no cancelados y todos
+    los pagos de la mesa desde que existe, ordenados por fecha. Uso
+    interno de cuenta_mesa."""
+    items = db.execute(
+        """
+        SELECT ip.id, ip.pedido_id, ip.estado, ip.precio_congelado, ip.creado_en,
+               pl.nombre AS plato_nombre
+          FROM item_pedido ip
+          JOIN pedido p ON p.id = ip.pedido_id
+          JOIN plato pl ON pl.id = ip.plato_id
+         WHERE p.mesa_id = ? AND ip.estado != 'CANCELADO'
+         ORDER BY ip.creado_en
+        """,
+        (mesa_id,),
+    ).fetchall()
+    pagos = db.execute(
+        """
+        SELECT id, monto, propina, medio, pagador, creado_en
+          FROM pago
+         WHERE mesa_id = ?
+         ORDER BY creado_en
+        """,
+        (mesa_id,),
+    ).fetchall()
+    return items, pagos
+
+
+def _inicio_ronda_actual(items, pagos):
+    """Encuentra la marca de tiempo del pago mas reciente que dejo el
+    saldo de la mesa exactamente en cero (A-23: la mesa se cierra ahi).
+    Devuelve None si eso nunca ha pasado. Recorre items y pagos juntos,
+    ordenados por fecha, acumulando el total y lo pagado; cada vez que un
+    pago iguala esas dos sumas, ese es un cierre. El ultimo cierre
+    encontrado es donde empieza la ronda que sigue abierta ahora."""
+    eventos = [(fila["creado_en"], fila["precio_congelado"], 0) for fila in items]
+    eventos += [(fila["creado_en"], 0, fila["monto"]) for fila in pagos]
+    eventos.sort(key=lambda evento: evento[0])
+
+    total_acumulado = 0
+    pagado_acumulado = 0
+    ultimo_cierre = None
+    for creado_en, monto_item, monto_pago in eventos:
+        total_acumulado += monto_item
+        pagado_acumulado += monto_pago
+        if monto_pago > 0 and total_acumulado == pagado_acumulado:
+            ultimo_cierre = creado_en
+    return ultimo_cierre
+
+
+def cuenta_mesa(db, mesa_id):
+    """Garantiza: los items cobrables, los pagos, el total, lo pagado y
+    el saldo de la ronda que sigue abierta en esta mesa ahora mismo.
+
+    Una ronda anterior que ya dejo el saldo en cero (A-23: la mesa se
+    cierra ahi) no se cuenta: en cuanto un pedido nuevo llega a una mesa
+    libre, sus items cobrables, su total y lo pagado empiezan otra vez
+    en cero, sin que haya que guardar ninguna marca de cierre."""
+    items, pagos = _historia_completa_mesa(db, mesa_id)
+    inicio = _inicio_ronda_actual(items, pagos)
+
+    items_ronda = [i for i in items if inicio is None or i["creado_en"] > inicio]
+    pagos_ronda = [p for p in pagos if inicio is None or p["creado_en"] > inicio]
+
+    total = sum(i["precio_congelado"] for i in items_ronda)
+    pagado = sum(p["monto"] for p in pagos_ronda)
+
+    return {
+        "items": items_ronda,
+        "pagos": pagos_ronda,
+        "total": total,
+        "pagado": pagado,
+        "saldo": total - pagado,
+    }
+
+
+def saldo_mesa(db, mesa_id):
+    """Garantiza: el saldo pendiente de la ronda abierta en esta mesa."""
+    return cuenta_mesa(db, mesa_id)["saldo"]
+
+
+def mesas_con_cuenta(db):
+    """Garantiza: todas las mesas con el total, lo pagado y el saldo de
+    su ronda abierta, para verlas de un vistazo."""
+    resultado = []
+    for fila in db.execute("SELECT id, nombre FROM mesa ORDER BY id").fetchall():
+        cuenta = cuenta_mesa(db, fila["id"])
+        resultado.append(
+            {
+                "id": fila["id"],
+                "nombre": fila["nombre"],
+                "total": cuenta["total"],
+                "pagado": cuenta["pagado"],
+                "saldo": cuenta["saldo"],
+            }
+        )
+    return resultado
+
+
 def estado_pedido(db, pedido_id):
     """Garantiza: ANULADO, ENTREGADO, COMPLETO o EN_CURSO, calculado a
     partir de los estados de sus items en este instante y comprobado en

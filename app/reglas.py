@@ -5,7 +5,7 @@ sabe que existe HTTP, y una operacion rechazada se anuncia lanzando una
 excepcion de dominio, nunca con un codigo de estado.
 """
 
-from .consultas import plato_disponible
+from .consultas import cuenta_mesa, plato_disponible
 from .db import transaccion
 
 
@@ -19,6 +19,10 @@ class TransicionInvalida(ErrorDeRegla):
 
 class PlatoNoDisponible(ErrorDeRegla):
     """El plato pedido no tiene receta registrada o le falta un ingrediente."""
+
+
+class PagoInvalido(ErrorDeRegla):
+    """El pago no cumple las condiciones para registrarse (regla 4)."""
 
 
 def crear_pedido(db, mesa_id, mesero_id, platos_ids):
@@ -139,3 +143,35 @@ def marcar_ingrediente_agotado(db, ingrediente_id):
     """Garantiza: el ingrediente queda agotado. El administrador puede
     alternarlo libremente, no hay un estado previo que exigir."""
     db.execute("UPDATE ingrediente SET disponible = 0 WHERE id = ?", (ingrediente_id,))
+
+
+def registrar_pago(db, mesa_id, monto, medio, propina=0, pagador=None):
+    """Garantiza (regla 4): un pago solo se registra si el monto es
+    positivo, la mesa no tiene items sin entregar, el saldo pendiente es
+    mayor que cero y el monto no lo supera.
+
+    La comprobacion del saldo y la insercion del pago ocurren dentro de
+    la misma transaccion explicita (BEGIN IMMEDIATE), para que dos pagos
+    simultaneos sobre la misma mesa no se pasen del total entre la
+    lectura del saldo y la escritura de cada uno."""
+    if monto <= 0:
+        raise PagoInvalido("el monto debe ser mayor que cero")
+
+    with transaccion(db) as tx:
+        cuenta = cuenta_mesa(tx, mesa_id)
+
+        if any(item["estado"] != "ENTREGADO" for item in cuenta["items"]):
+            raise PagoInvalido("quedan items sin entregar en esta mesa")
+
+        if cuenta["saldo"] <= 0:
+            raise PagoInvalido("la mesa no tiene saldo pendiente")
+        if monto > cuenta["saldo"]:
+            raise PagoInvalido(f"el monto supera el saldo pendiente ({cuenta['saldo']})")
+
+        tx.execute(
+            """
+            INSERT INTO pago (mesa_id, monto, propina, medio, pagador)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (mesa_id, monto, propina, medio, pagador),
+        )
