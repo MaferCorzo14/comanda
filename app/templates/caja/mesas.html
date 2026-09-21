@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block titulo %}Caja{% endblock %}
+
+{% block contenido %}
+<h1>Cuentas por mesa</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Mesa</th>
+            <th>Total</th>
+            <th>Pagado</th>
+            <th>Saldo</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for mesa in mesas %}
+        <tr>
+            <td>{{ mesa.nombre }}</td>
+            <td>${{ "{:,}".format(mesa.total) }}</td>
+            <td>${{ "{:,}".format(mesa.pagado) }}</td>
+            <td>${{ "{:,}".format(mesa.saldo) }}</td>
+            <td><a href="{{ url_for('caja.detalle', mesa_id=mesa.id) }}">Ver cuenta</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

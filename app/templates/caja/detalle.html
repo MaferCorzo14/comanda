@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block titulo %}Cuenta {{ mesa.nombre }}{% endblock %}
+
+{% block contenido %}
+<h1>Cuenta — {{ mesa.nombre }}</h1>
+<p><a href="{{ url_for('caja.mesas') }}">Volver a todas las mesas</a></p>
+
+<h2>Items cobrables</h2>
+{% if not items %}
+<p>No hay items cobrables todavia.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Plato</th>
+            <th>Estado</th>
+            <th>Precio</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.plato_nombre }}</td>
+            <td>{{ item.estado }}</td>
+            <td>${{ "{:,}".format(item.precio_congelado) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Pagos registrados</h2>
+{% if not pagos %}
+<p>Todavia no hay pagos registrados.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Monto</th>
+            <th>Propina</th>
+            <th>Medio</th>
+            <th>Pagador</th>
+            <th>Fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pago in pagos %}
+        <tr>
+            <td>${{ "{:,}".format(pago.monto) }}</td>
+            <td>${{ "{:,}".format(pago.propina) }}</td>
+            <td>{{ pago.medio }}</td>
+            <td>{{ pago.pagador or "-" }}</td>
+            <td>{{ pago.creado_en|hora_local }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Resumen</h2>
+<table>
+    <tbody>
+        <tr><th>Total</th><td>${{ "{:,}".format(total) }}</td></tr>
+        <tr><th>Pagado</th><td>${{ "{:,}".format(pagado) }}</td></tr>
+        <tr><th>Saldo</th><td>${{ "{:,}".format(saldo) }}</td></tr>
+    </tbody>
+</table>
+
+{% if saldo > 0 %}
+<h2>Registrar pago</h2>
+<form method="post" action="{{ url_for('caja.registrar_pago', mesa_id=mesa.id) }}">
+    <label for="monto">Monto</label>
+    <input type="number" name="monto" id="monto" min="1" max="{{ saldo }}" required>
+
+    <label for="propina">Propina (opcional)</label>
+    <input type="number" name="propina" id="propina" min="0" value="0">
+
+    <label for="medio">Medio</label>
+    <select name="medio" id="medio" required>
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="TARJETA">Tarjeta</option>
+    </select>
+
+    <label for="pagador">Quien paga (opcional)</label>
+    <input type="text" name="pagador" id="pagador">
+
+    <button type="submit">Registrar pago</button>
+</form>
+{% else %}
+<p>Esta mesa esta libre: no tiene saldo pendiente.</p>
+{% endif %}
+{% endblock %}
