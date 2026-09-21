@@ -55,8 +55,8 @@ Cada uno de estos valores se calcula en **un solo lugar** y no se guarda duplica
 |---|---|
 | Estado del pedido | Los estados de sus ítems |
 | Disponibilidad de un plato | Su receta y la disponibilidad de sus ingredientes |
-| Total de la cuenta | Suma de los precios congelados de los ítems no cancelados de la mesa |
-| Saldo pendiente | Total menos la suma de los pagos |
+| Total de la cuenta | Suma de los precios congelados de los ítems no cancelados de la ronda abierta de la mesa (ver A-23) |
+| Saldo pendiente | Total menos la suma de los pagos de esa misma ronda |
 | Antigüedad en la cola | Fecha de creación del ítem |
 | Precio cobrado | El precio congelado en el ítem de pedido, nunca el precio actual del plato |
 

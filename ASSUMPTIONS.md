@@ -58,7 +58,7 @@ Consecuencia de A-09.
 **A-16. Los pagos parciales son por monto libre.**
 Se registra quién pagó (texto libre), el medio (efectivo o tarjeta), el monto y la fecha. El monto libre cubre también la división en partes iguales, que es un caso particular.
 
-**A-17. El saldo pendiente no se guarda: se calcula como total menos pagos.**
+**A-17. El saldo pendiente no se guarda: se calcula como total menos pagos, ambos de la ronda abierta de la mesa (ver A-23).**
 Guardarlo permitiría que se desincronizara de los pagos reales.
 
 **A-18. El medio de pago es solo un dato.**
@@ -75,7 +75,8 @@ Un cambio posterior en el precio del plato no altera cuentas abiertas.
 **A-22. La propina, si se registra, va en un campo aparte del monto.**
 Si se sumara al monto, rompería la regla de que los pagos no superan el total.
 
-**A-23. La mesa se cierra cuando el saldo llega a cero.** Una cuenta cerrada no admite más pagos ni pedidos.
+**A-23. La mesa se cierra cuando el saldo llega a cero, y no se guarda ninguna marca de cierre.**
+El cierre se detecta calculando, no almacenando: se recorren los ítems no cancelados y los pagos de toda la historia de la mesa en orden cronológico, acumulando total y pagado, y se busca el pago más reciente que haya dejado esas dos sumas iguales. Todo lo anterior a ese pago pertenece a una ronda ya cerrada y no vuelve a mostrarse; todo lo posterior es la ronda abierta ahora. Si nunca ha pasado, se cuenta la mesa completa. Por eso una mesa "cerrada" sí admite pedidos nuevos: en cuanto llega uno, sus ítems ya quedan después del último cierre, así que el total, lo pagado y el saldo visibles arrancan otra vez en cero sin que haga falta borrar ni marcar nada.
 
 **A-24. No hay impuestos ni descuentos.**
 
