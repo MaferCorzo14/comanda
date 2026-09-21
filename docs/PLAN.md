@@ -134,9 +134,40 @@ sequenceDiagram
 
 **Criterio de aceptación:** un plato con un ingrediente agotado no aparece en el menú del mesero, y el intento de pedirlo por HTTP se rechaza. Un ítem ya iniciado no se puede cancelar por ninguna vía.
 
-### F4. Cuenta y pagos — Pendiente
+### F4. Cuenta y pagos — Completada
 
 La regla 4.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor mesero as Mesero
+    participant sistema as Sistema
+    actor caja as Caja
+
+    rect rgba(120, 170, 120, 0.12)
+        Note over mesero, caja: Camino feliz - pagos parciales hasta saldar la cuenta
+        mesero->>sistema: entrega todos los items no cancelados de la mesa
+        caja->>sistema: consulta la cuenta de la mesa
+        Note over sistema: total, pagado y saldo se calculan<br/>de items y pagos, no se guardan
+        caja->>sistema: registra un pago parcial
+        sistema-->>caja: ACEPTADO, dentro de BEGIN IMMEDIATE
+        caja->>sistema: registra el pago restante
+        Note over sistema: saldo llega a 0: la mesa queda libre,<br/>sin ninguna marca de cierre
+        mesero->>sistema: registra un pedido nuevo en esa misma mesa
+        Note over sistema: la cuenta visible arranca otra vez<br/>en cero desde ese pedido
+    end
+
+    rect rgba(190, 120, 120, 0.12)
+        Note over mesero, caja: Rechazos - regla 4
+        caja->>sistema: intenta cobrar con items sin entregar
+        sistema-->>caja: RECHAZADO
+        caja->>sistema: intenta cobrar mas del saldo pendiente
+        sistema-->>caja: RECHAZADO
+        caja->>sistema: intenta cobrar una mesa con saldo en 0
+        sistema-->>caja: RECHAZADO
+    end
+```
 
 - Cuenta por mesa, con el total de los ítems no cancelados.
 - Registro de pagos parciales por monto libre.

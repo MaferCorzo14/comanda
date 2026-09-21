@@ -76,3 +76,23 @@ Los criterios no cumplidos se reportan como tales al cierre, con el motivo.
 ## Contexto
 
 Proyecto desarrollado como prueba técnica individual de la asignatura Herramientas de Empleabilidad en Ingeniería de Sistemas, Universidad Francisco de Paula Santander, septiembre de 2026. El enunciado se entregó deliberadamente incompleto; los vacíos resueltos están documentados en [ASSUMPTIONS.md](ASSUMPTIONS.md).
+
+## Ejecución
+
+```powershell
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+flask --app app init-db
+flask --app app run
+```
+
+### Reiniciar la base de datos
+
+`init-db` crea la base; no la reinicia. Si ya existe, el comando falla en
+lugar de sobrescribirla. Para empezar de cero, borra el archivo primero:
+
+```powershell
+Remove-Item instance\comanda.sqlite
+flask --app app init-db
+```

@@ -391,3 +391,83 @@ Con el mismo pedido 13: cocina canceló un ítem en `PENDIENTE` y preparó los o
 **F3 cerrada.** Las reglas 2 y 3 están implementadas y verificadas, con el registro de faltantes declarado como opcional y no implementado.
 
 Lo siguiente es F4, la cuenta y los pagos parciales. Queda preparado en la base un caso útil para probarla: la mesa 1 tiene un pedido con dos hamburguesas entregadas y una cancelada, así que su cuenta debe sumar dos y no tres. Es el supuesto A-20, que un plato cancelado nunca llegó a la mesa y no se cobra.
+
+---
+
+## Sesión 7 — 20 de septiembre de 2026
+
+**Herramienta:** Claude Code (construcción), chat de Claude (revisión y decisiones).
+
+Fase F4, la última de construcción: la cuenta de una mesa y los pagos parciales, regla 4.
+
+---
+
+### Qué le pedí
+
+Implementar la regla 4 según `prompts/pago.md`: total de la cuenta (suma de los precios congelados de los ítems no cancelados), pagado (suma de los montos sin la propina), saldo (total menos pagado), y "mesa libre" cuando el saldo llega a cero, sin guardar ninguna marca de cierre. Registrar un pago debía rechazarse si el monto es cero o negativo, si supera el saldo, si quedan ítems sin entregar, o si el saldo ya está en cero. Le puse la misma condición que en `esquema.md` al principio del proyecto: si el modelo tenía un problema, decírmelo antes de implementarlo en vez de resolverlo por su cuenta.
+
+---
+
+### Qué señaló antes de escribir código
+
+El modelo que le di contradecía un supuesto ya documentado. `ASSUMPTIONS.md` (A-23) decía que una mesa cerrada "no admite más pagos ni pedidos"; el modelo de `pago.md` decía lo contrario, que no hace falta ninguna marca y que un pedido nuevo hace subir el saldo solo. El agente lo señaló en vez de elegir una de las dos por su cuenta, tal como se lo pedí, y siguió implementando el modelo del prompt por ser el más reciente y el que no dejaba ambigüedad.
+
+Acepté seguir adelante con esa lectura, y quedó pendiente actualizar A-23 al cierre.
+
+---
+
+### Qué propuso
+
+`consultas.py` con `total_mesa`, `pagado_mesa` y `saldo_mesa` calculados sobre **todos** los pedidos históricos de la mesa; `reglas.registrar_pago` dentro de una transacción `BEGIN IMMEDIATE` (la misma herramienta que ya se usaba para la disponibilidad, ahora justificada por dos cajeros cobrando la misma mesa a la vez); y un blueprint nuevo, `caja`, con el listado de mesas y el detalle de cada una.
+
+Antes de mostrarme el resultado, notó él mismo que la vista de detalle mezclaba, en una sola lista, los ítems y pagos de **toda la vida de la mesa**, y me preguntó directamente cómo prefería resolverlo: dejarlo como historial completo, o calcular la ronda abierta actual. Elegí dejarlo como historial completo, razonando que el saldo ya era correcto y que separar rondas era una cuenta nueva que el prompt no había pedido.
+
+---
+
+### El hueco que apareció al usar el sistema
+
+Registré un pago que dejaba en cero la cuenta de la mesa 3 y después le abrí un pedido nuevo. La pantalla de caja mostró los ítems y los pagos del pedido viejo, ya cobrado, mezclados con los del pedido nuevo. El saldo mostrado seguía siendo el correcto, pero **no cuadraba con la lógica** que yo misma había escrito en A-23: si la mesa se cierra al llegar a cero, un pedido nuevo debería empezar una cuenta en cero, no seguir sumando sobre el historial completo.
+
+Volví sobre mi propia decisión anterior. Le señalé la contradicción con A-23 tal como está redactado, y le pedí que la vista de caja mostrara cero al cerrar una cuenta, y que la mesa quedara disponible para una cuenta nueva sin arrastrar lo ya cobrado.
+
+Es el tercer hallazgo del fin de semana que solo apareció usando el sistema y no leyendo el código: el primero fue el estado del pedido tras la entrega, el segundo el formulario con casillas en vez de cantidades, y este es el tercero.
+
+---
+
+### Qué propuso para resolverlo
+
+`cuenta_mesa`, que reemplaza a las tres funciones anteriores. Recorre en orden cronológico los ítems no cancelados y los pagos de toda la historia de la mesa, acumulando total y pagado, y busca el pago más reciente que haya dejado esas dos sumas exactamente iguales. Todo lo anterior a ese pago pertenece a una ronda ya cerrada y no se muestra; todo lo posterior es la cuenta abierta ahora. Si eso nunca ha pasado, cuenta la mesa completa.
+
+Me explicó, y verifiqué que tiene sentido, que el **saldo no cambiaba con este ajuste** (ya era matemáticamente correcto antes, porque lo pagado también se acumulaba y las rondas cerradas se cancelaban solas en la resta); lo único que cambiaba era qué ítems y pagos se muestran como "cobrables" en la pantalla, que es justo lo que a mí me parecía mal.
+
+No pedí que se guardara ninguna marca de "mesa cerrada": el cierre se sigue calculando, no almacenando, que es coherente con cómo se calcula todo lo demás en este proyecto (estado del pedido, disponibilidad del plato).
+
+---
+
+### Verificación de la regla 4
+
+- Pagar un monto de cero, o mayor al saldo pendiente: rechazado en ambos casos, con mensaje.
+- Pagar una mesa con ítems sin entregar: rechazado.
+- Pagar el saldo exacto de una mesa: la cuenta queda en cero y la pantalla de caja lo muestra vacío.
+- Pagar de nuevo una mesa ya en cero: rechazado.
+- Abrir un pedido nuevo en una mesa ya saldada: el total y el saldo mostrados son solo los del pedido nuevo, no el historial.
+- Repetir el ciclo una tercera vez sobre la misma mesa: vuelve a arrancar en cero cada vez, sin guardar ninguna marca.
+- Una mesa que nunca ha tenido pedidos: la cuenta da cero en todo, sin romperse.
+
+---
+
+### Qué actualicé en `ASSUMPTIONS.md` y `AGENTS.md`
+
+A-23 quedó reescrito con el algoritmo real: la mesa se cierra cuando el saldo llega a cero, sin guardar ninguna marca de cierre, y por eso una mesa "cerrada" sí admite pedidos nuevos — en cuanto llega uno, sus ítems ya quedan después del último cierre y la cuenta visible arranca de nuevo en cero. La tabla de "dueño único de cada concepto derivado" en `AGENTS.md` quedó apuntando a esa misma definición para el total de la cuenta y el saldo pendiente.
+
+---
+
+### Estado al cierre
+
+**F4 cerrada.** La regla 4 está implementada y verificada, incluida la corrección de la ronda abierta.
+
+Las cuatro reglas del negocio predominante están construidas: F2 (flujo principal), F3 (disponibilidad y cancelación) y F4 (cuenta y pagos). El registro de faltantes de cocina sigue fuera, declarado como opcional desde la sesión 6.
+
+Lo siguiente es F5, el cierre: instrucciones de ejecución probadas desde cero, esta bitácora al día, y el repaso de los criterios de éxito con lo que se cumplió y lo que no.
+
+**Qué quedó sin verificar.** El recorrido manual completo de punta a punta por el navegador, con los cuatro roles y las cuatro reglas en un solo repaso, que quedó en marcha al cierre de esta sesión siguiendo una guía de verificación paso a paso.
